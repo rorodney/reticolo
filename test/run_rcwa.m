@@ -1,7 +1,61 @@
 function results = run_rcwa(stack, substrate_file, sweep, options)
+% RUN_RCWA  Run a RETICOLO RCWA sweep over photon energy or incidence angle.
+%
+% USAGE
+%   results = run_rcwa(stack, substrate_file, sweep, options)
+%
+% INPUTS
+%   stack           struct from build_stack / add_layer
+%
+%   substrate_file  path to CXRO optical constants file for the substrate
+%
+%   sweep           struct describing what to iterate over:
+%
+%     Energy sweep with Cff mode (alpha computed per energy):
+%       sweep.type    = 'energy'
+%       sweep.values  = [50 : 5 : 1000]   % eV
+%       sweep.Cff     = 2.25
+%
+%     Energy sweep with fixed alpha:
+%       sweep.type      = 'energy'
+%       sweep.values    = [50 : 5 : 1000]
+%       sweep.alpha_deg = 1.5              % grazing incidence angle
+%
+%     Angle sweep at fixed energy:
+%       sweep.type        = 'alpha'
+%       sweep.values      = [0.5 : 0.1 : 5.0]   % grazing incidence angles (deg)
+%       sweep.energy_eV   = 500                  % fixed photon energy
+%
+%     Bragg-peak tracking sweep (energy + paired alpha from lookup table):
+%       sweep.type      = 'bragg'
+%       sweep.values    = [500, 502, 504, ...]   % photon energies (eV)
+%       sweep.alpha_deg = [14.18, 14.11, ...]    % matching grazing angles (deg)
+%                         must be same length as sweep.values
+%       Typical source: IMD/REFLEC Bragg-peak table, or a pre-computed
+%       (energy, alpha) curve from multilayer d-spacing optimisation.
+%       Each energy point uses its paired alpha directly — no Cff solve.
+%
+%   options         struct (all fields optional, defaults shown):
+%       .FourierOrders   11
+%       .pol             -1     % -1 = TM, +1 = TE
+%       .GR_Order        -1     % diffraction order to extract
+%       .z_res_nm        0.5
+%       .reticolo_path   fullfile(pwd, 'V9', 'reticolo_allege_v9')
+%       .output_dir      pwd
+%       .verbose         true
+%
+% OUTPUT
+%   results   struct with fields:
+%       .sweep_values       the iterated variable (eV or deg)
+%       .sweep_label        'PhotonEnergy_eV' | 'GrazingAngle_deg'
+%       .efficiency         diffraction efficiency for GR_Order
+%       .alpha_deg          grazing incidence angle used at each point
+%       .beta_deg           exit grazing angle for GR_Order
+%       .csv_file           path of the written CSV
 
+% -------------------------------------------------------------------------
 %  Defaults
-
+% -------------------------------------------------------------------------
 opt = struct( ...
     'FourierOrders', 11,   ...
     'pol',           -1,   ...
@@ -11,7 +65,6 @@ opt = struct( ...
     'output_dir',    pwd,  ...
     'verbose',       true  ...
 );
-
 if nargin >= 4 && ~isempty(options)
     fnames = fieldnames(options);
     for fi = 1:numel(fnames)
@@ -19,8 +72,9 @@ if nargin >= 4 && ~isempty(options)
     end
 end
 
+% -------------------------------------------------------------------------
 %  RETICOLO initialisation
-
+% -------------------------------------------------------------------------
 if exist(opt.reticolo_path, 'dir') ~= 7
     error('run_rcwa: RETICOLO path not found:\n  %s', opt.reticolo_path);
 end
@@ -28,13 +82,12 @@ addpath(genpath(opt.reticolo_path));
 retio;
 warning('off', 'all');
 
-
+% -------------------------------------------------------------------------
 %  Sweep mode detection
-
+% -------------------------------------------------------------------------
 use_energy_sweep = strcmpi(sweep.type, 'energy');
 use_angle_sweep  = strcmpi(sweep.type, 'alpha');
 use_bragg_sweep  = strcmpi(sweep.type, 'bragg');
-
 
 if use_energy_sweep
     use_cff = isfield(sweep, 'Cff') && ~isfield(sweep, 'alpha_deg');
@@ -54,27 +107,27 @@ else
     error('run_rcwa: sweep.type must be ''energy'', ''alpha'', or ''bragg''');
 end
 
-% assign geometry and stack to local variables for convenience
+% -------------------------------------------------------------------------
+%  Geometry shortcuts
+% -------------------------------------------------------------------------
 grating   = stack.grating;
 p_nm      = grating.period_nm;
 nn        = opt.FourierOrders;
 pol       = opt.pol;
 gr_order  = opt.GR_Order;
 
-
+% -------------------------------------------------------------------------
 %  Output accumulators
-out_sweep = [];
-out_eff   = [];
-out_alpha = [];
-out_beta  = [];
+% -------------------------------------------------------------------------
+out_sweep  = [];
+out_eff    = [];
+out_alpha  = [];
+out_beta   = [];
 
-
+% -------------------------------------------------------------------------
 %  Main sweep loop
-
+% -------------------------------------------------------------------------
 sweep_values = sweep.values;
-global meshgrid_saved;  % flag to save meshgrid plot only once
-meshgrid_saved = false;
-
 
 for sv = sweep_values
 
@@ -82,13 +135,13 @@ for sv = sweep_values
         photon_eV = sv;
         lambda_nm = 1239.8 / photon_eV;
     else  % angle sweep
-        photon_eV = fixed_energy_eV
+        photon_eV = fixed_energy_eV;
         lambda_nm = 1239.8 / photon_eV;
     end
 
-    % resolve alpha
+    % --- resolve alpha -------------------------------------------------------
     if use_energy_sweep && use_cff
-        current_alpha_deg =resolve_alpha_cff(lambda_nm, p_nm, gr_order, Cff, photon_eV);
+        current_alpha_deg = resolve_alpha_cff(lambda_nm, p_nm, gr_order, Cff, photon_eV);
         if isnan(current_alpha_deg); continue; end
     elseif use_energy_sweep
         current_alpha_deg = fixed_alpha_deg;
@@ -99,10 +152,10 @@ for sv = sweep_values
     else
         current_alpha_deg = sv;   % angle sweep
     end
-    current_alpha_deg = 90 - current_alpha_deg;  % convert to alpha convention for RETICOLO
+
     k_parallel = sin(deg2rad(current_alpha_deg));
 
-    % load substrate optical constants 
+    % --- load substrate optical constants ------------------------------------
     n_sub = load_cxro(substrate_file, photon_eV);
     if isnan(real(n_sub))
         if opt.verbose
@@ -111,7 +164,7 @@ for sv = sweep_values
         continue;
     end
 
-    % load layer optical constants 
+    % --- load layer optical constants ----------------------------------------
     n_layers = cell(1, numel(stack.layers));
     skip = false;
     for li = 1:numel(stack.layers)
@@ -126,18 +179,19 @@ for sv = sweep_values
     if skip; continue; end
 
     n_inc = 1;   % vacuum above
-    
-    %  build meshgrid and fill refractive indices 
-    [textures, profile, ~] = build_reticolo_input(grating, stack.layers, n_layers, n_sub, n_inc, opt.z_res_nm);
 
-    % RETICOLO call 
+    % --- build meshgrid and fill refractive indices --------------------------
+    [textures, profile, ~] = build_reticolo_input( ...
+        grating, stack.layers, n_layers, n_sub, n_inc, opt.z_res_nm);
+
+    % --- RETICOLO call -------------------------------------------------------
     parm            = res0(pol);
     parm.res1.trace = 0;
 
     aa = res1(lambda_nm, p_nm, textures, nn, k_parallel, parm);
     ef = res2(aa, profile, parm);
 
-    % extract order efficiency
+    % --- extract requested order efficiency ----------------------------------
     orders    = ef.inc_top_reflected.order(:, 1);
     idx_order = find(orders == gr_order);
 
@@ -147,13 +201,12 @@ for sv = sweep_values
         end
         continue;
     end
-     
+
     eff_val  = ef.inc_top_reflected.efficiency(idx_order);
     beta_val = 90 - ef.inc_top_reflected.theta(idx_order);
-    current_alpha_deg = 90 - current_alpha_deg;  % convert back to grazing angle for output
 
     if opt.verbose
-        if use_energy_sweep
+        if use_energy_sweep || use_bragg_sweep
             fprintf('E = %6.1f eV | alpha = %.3f deg | eff(%+d) = %.4f (%.2f%%) | beta = %.3f deg\n', ...
                 photon_eV, current_alpha_deg, gr_order, eff_val, eff_val*100, beta_val);
         else
@@ -168,11 +221,12 @@ for sv = sweep_values
     out_beta  = [out_beta,  beta_val];
 end
 
+% -------------------------------------------------------------------------
 %  Assemble results struct
-
+% -------------------------------------------------------------------------
 results.efficiency  = out_eff;
-results.alpha_deg   = 90 - out_alpha;  % convert back from alpha convention to grazing angle
-results.beta_deg    = 90 - out_beta;
+results.alpha_deg   = out_alpha;
+results.beta_deg    = out_beta;
 
 if use_energy_sweep || use_bragg_sweep
     results.sweep_values = out_sweep;
@@ -182,16 +236,13 @@ else
     results.sweep_label  = 'GrazingAngle_deg';
 end
 
+% -------------------------------------------------------------------------
 %  CSV output
-
-csv_name = "simulation_results.csv";
+% -------------------------------------------------------------------------
+csv_name = build_csv_name(stack, substrate_file, sweep, opt);
 csv_path = fullfile(opt.output_dir, csv_name);
 
 fid = fopen(csv_path, 'w');
-if fid < 0
-    error('Cannot open file %s for writing', csv_path);
-end
-
 if use_energy_sweep || use_bragg_sweep
     fprintf(fid, 'PhotonEnergy_eV,GrazingAlpha_deg,DiffractionEfficiency,ExitAngle_beta_deg\n');
     for k = 1:numel(out_sweep)
@@ -200,7 +251,7 @@ if use_energy_sweep || use_bragg_sweep
 else
     fprintf(fid, 'GrazingAngle_deg,PhotonEnergy_eV,DiffractionEfficiency,ExitAngle_beta_deg\n');
     for k = 1:numel(out_sweep)
-        fprintf(fid, '%.6f,%.4f,%.6f,%.6f\n',  out_sweep(k), fixed_energy_eV, out_eff(k),  out_beta(k));
+        fprintf(fid, '%.6f,%.4f,%.6f,%.6f\n', out_sweep(k), fixed_energy_eV, out_eff(k), out_beta(k));
     end
 end
 fclose(fid);
@@ -211,18 +262,22 @@ fprintf('\nResults saved to: %s\n', csv_path);
 end
 
 
-
-%  Internal helper functions  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% =========================================================================
+%  Internal helpers
+% =========================================================================
 
 function [textures, profile, X, Z, n_grid] = build_reticolo_input( ...
         grating, layers, n_layers, n_sub, n_inc, z_res_nm)
 % Build the z stack, fill the refractive-index meshgrid, and compress into
 % RETICOLO texture cells + a profile descriptor.
 %
-% Filling order
-% 1. Everything = n_sub  (substrate)
-% 2. Everything above grating surface (Prf0) = n_inc  (vacuum)
-% 3. For each coating layer i: band between Prf_{i-1} and Prf_i = n_layers{i}
+% Filling order (matches original script logic):
+%   1. Everything = n_sub  (substrate)
+%   2. Everything above grating surface (Prf0) = n_inc  (vacuum)
+%   3. For each coating layer i: band between Prf_{i-1} and Prf_i = n_layers{i}
+%
+% This is a direct translation of the three find()-based assignments in the
+% original monolithic script, extended to N conformal coating layers.
 
     x        = grating.x;
     Prf0     = grating.z_surface;   % grating surface height at each x [1 x Nx]
@@ -244,7 +299,7 @@ function [textures, profile, X, Z, n_grid] = build_reticolo_input( ...
     % --- Step 1: fill everything with substrate ------------------------------
     n_grid(:) = n_sub;
 
-    % --- step 2: vacuum above grating surface --------------------------------
+    % --- Step 2: vacuum above grating surface --------------------------------
     P = find(Z >= Prf0);
     n_grid(P) = n_inc;
 
