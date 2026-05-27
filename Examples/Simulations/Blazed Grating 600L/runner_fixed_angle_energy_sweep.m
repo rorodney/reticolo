@@ -37,8 +37,8 @@ grating = build_grating('blazed', period_nm, depth_nm, ...
 substrate_file = fullfile(oc_path, 'n_Si_cxro.txt');
 
 stack = build_stack(grating);
-stack = add_layer(stack, fullfile(oc_path, 'n_Au_cxro.txt'), 31);   % 31 nm Au coating
-
+stack = add_layer(stack, fullfile(oc_path, 'n_Au_cxro.txt'), 31);   % Au coating
+stack = add_layer(stack, fullfile(oc_path, 'n_C_cxro.txt'), .8);   % C contamination
 
 
 % Sweep parameters %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -1,8 +1,12 @@
-% Fixed Angle Energy Sweep — Single Layer Blazed Grating Simulation
-
+% Fixed Energy Angle Sweep — Single Layer Blazed Grating Simulation
+%
+% Sweeps grazing incidence angle at a fixed photon energy.
+% Use this to find the optimal working angle or to reproduce a rocking-curve
+% measurement at a given photon energy.
+%
 % Grating : 600 l/mm single-layer Au on Si
-% Sweep   : energy 50–2000 eV at fixed grazing angle alpha_deg
-
+% Sweep   : grazing angle 0.5–8° at fixed photon energy
+% Output  : efficiency CSV + plot saved to Results/
 
 clear; warning('off', 'all');
 
@@ -13,23 +17,21 @@ addpath(fullfile(base, '..', '..', '..', 'helpers'));
 
 % Geometry %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-x_res_nm = 0.1;
-z_res_nm = 0.1;
+x_res_nm = 0.5;
+z_res_nm = 0.5;
 
-grPeriod_lpermm      = 600;
-grBlazeAngle_deg     = 0.73;
-grAntiBlazeAngle_deg = 5.60;
+grPeriod_lpermm   = 400;
+depth_nm          = 14.9;
+sidewall_angle_deg = 15;           % from horizontal
+groove_width_ratio = 0.67;         % groove floor width / period
 
-period_nm  = 1e6 / grPeriod_lpermm;
-tan_blaze  = tand(grBlazeAngle_deg);
-tan_anti   = tand(grAntiBlazeAngle_deg);
-w_blaze_nm = period_nm / (1 + tan_blaze / tan_anti);
-depth_nm   = w_blaze_nm * tan_blaze;
+period_nm = 1e6 / grPeriod_lpermm;
 
-fprintf('Derived groove depth: %.4f nm\n', depth_nm);
+fprintf('Grating period : %.2f nm  (%.0f l/mm)\n', period_nm, grPeriod_lpermm);
+fprintf('Groove depth   : %.2f nm  |  Sidewall angle: %.1f deg\n', depth_nm, sidewall_angle_deg);
 
-grating = build_grating('blazed', period_nm, depth_nm, ...
-                         grBlazeAngle_deg, grAntiBlazeAngle_deg, x_res_nm);
+grating = build_grating('trapezoidal', period_nm, depth_nm, ...
+                         groove_width_ratio, sidewall_angle_deg, x_res_nm);
 
 
 % Layer stack %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -37,23 +39,21 @@ grating = build_grating('blazed', period_nm, depth_nm, ...
 substrate_file = fullfile(oc_path, 'n_Si_cxro.txt');
 
 stack = build_stack(grating);
-stack = add_layer(stack, fullfile(oc_path, 'n_Au_cxro.txt'), 31);   % 31 nm Au coating
-
+stack = add_layer(stack, fullfile(oc_path, 'n_Pt_cxro.txt'), 29);   % 29 nm Pt coating
+% stack = add_layer(stack, fullfile(oc_path, 'n_C_cxro.txt'), 1);   % 1 nm C contamination
 
 
 % Sweep parameters %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 
 sweep.type      = 'energy';
 sweep.values    = 50:5:1000;
 sweep.alpha_deg = 4;        % fixed grazing incidence angle in degrees
 % sweep.Cff     = 2.25;     % uncomment to use Cff-based angle instead
 
-
 % Solver options %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 options.FourierOrders = 11;
-options.pol           = -1;          % -1 = TM,  +1 = TE
+options.pol           = 1;          % -1 = TM,  +1 = TE
 options.GR_Order      = -1;
 options.z_res_nm      = z_res_nm;
 options.reticolo_path = fullfile(base, '..', '..', '..', 'V9', 'reticolo_allege_v9');
@@ -70,11 +70,11 @@ results = run_rcwa(stack, substrate_file, sweep, options);
 % Plot %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 photon_eV = sweep.values(round(end/2));   % mid-range energy for cross-section preview
-save_png  = fullfile(options.output_dir, 'meshgrid_fixed_angle_energy_sweep.png');
+save_png  = fullfile(options.output_dir, 'meshgrid_laminar.png');
 plot_meshgrid(stack, substrate_file, photon_eV, z_res_nm, save_png);
 
 if isempty(results.efficiency)
-    error('No valid efficiency data — check energy range and optical constant files.');
+    error('No valid efficiency data — check angle range and optical constant files.');
 end
 
 figure(1); clf;
