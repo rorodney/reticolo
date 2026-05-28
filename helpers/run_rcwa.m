@@ -351,7 +351,7 @@ function alpha_deg = resolve_alpha_cff(lambda_nm, p_nm, gr_order, Cff, photon_eV
     end
 
     [~, idx] = min(valid(:,1));
-    alpha_deg = rad2deg(valid(idx,1));
+    alpha_deg = 90 - rad2deg(valid(idx,1));   % convert from normal to grazing convention
 end
 
 

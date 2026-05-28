@@ -46,8 +46,8 @@ stack = add_layer(stack, fullfile(oc_path, 'n_C_cxro.txt'), .8);   % C contamina
 
 sweep.type      = 'energy';
 sweep.values    = 50:5:1000;
-sweep.alpha_deg = 4;        % fixed grazing incidence angle in degrees
-% sweep.Cff     = 2.25;     % uncomment to use Cff-based angle instead
+% sweep.alpha_deg = 1.5;        % fixed grazing incidence angle in degrees
+sweep.Cff     = 2.25;     % uncomment to use Cff-based angle instead
 
 
 % Solver options %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
