@@ -37,13 +37,13 @@ stack = add_layer(stack, fullfile(oc_path, 'n_Pt_cxro.txt'), 29);   % 29 nm Pt c
 
 sweep.type      = 'energy';
 sweep.values    = 50:5:1000;
-sweep.alpha_deg = 4;        % fixed grazing incidence angle in degrees
-% sweep.Cff     = 2.25;     % uncomment to use Cff-based angle instead
+% sweep.alpha_deg = 4;        % fixed grazing incidence angle in degrees
+sweep.Cff     = 2.25;     % uncomment to use Cff-based angle instead
 
 % Solver options %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 options.FourierOrders = 11;
-options.pol           = 1;          % -1 = TM,  +1 = TE
+options.pol           = -1;          % -1 = TM,  +1 = TE
 options.GR_Order      = -1;
 options.z_res_nm      = z_res_nm;
 options.reticolo_path = fullfile(base, '..', '..', '..', 'V9', 'reticolo_allege_v9');
