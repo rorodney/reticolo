@@ -1,13 +1,3 @@
-% Fixed Energy Angle Sweep — Single Layer Blazed Grating Simulation
-%
-% Sweeps grazing incidence angle at a fixed photon energy.
-% Use this to find the optimal working angle or to reproduce a rocking-curve
-% measurement at a given photon energy.
-%
-% Grating : 600 l/mm single-layer Au on Si
-% Sweep   : grazing angle 0.5–8° at fixed photon energy
-% Output  : efficiency CSV + plot saved to Results/
-
 clear; warning('off', 'all');
 
 base    = fileparts(mfilename('fullpath'));

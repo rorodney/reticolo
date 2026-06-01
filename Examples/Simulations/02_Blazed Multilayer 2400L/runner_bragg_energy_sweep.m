@@ -1,8 +1,3 @@
-% Bragg Energy Sweep — Multilayer Blazed Grating Simulation
-%
-% Grating : 2400 l/mm blazed Cr/C multilayer on Si
-% Sweep   : energy sweep along Bragg condition (lookup table)
-
 clear; warning('off', 'all');
 
 base    = fileparts(mfilename('fullpath'));
@@ -50,13 +45,9 @@ end
 
 
 % Sweep parameters %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
-% Load a Bragg lookup table: pairs of (energy_eV, alpha_deg) that track the
-% Bragg peak for this multilayer period.  Pass the energy range you want to
-% simulate as the second argument to clip the table.
 
 bragg_table_file = fullfile(base, 'bragg_lookup_table.csv');
-sweep = load_bragg_table(bragg_table_file, 500:400:6000);
+sweep = load_bragg_table(bragg_table_file, 3000:50:5000);
 
 
 % Solver options %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

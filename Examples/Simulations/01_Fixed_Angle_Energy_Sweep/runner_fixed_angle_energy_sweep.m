@@ -1,13 +1,3 @@
-% Fixed Energy Angle Sweep — Single Layer Blazed Grating Simulation
-%
-% Sweeps grazing incidence angle at a fixed photon energy.
-% Use this to find the optimal working angle or to reproduce a rocking-curve
-% measurement at a given photon energy.
-%
-% Grating : 600 l/mm single-layer Au on Si
-% Sweep   : grazing angle 0.5–8° at fixed photon energy
-% Output  : efficiency CSV + plot saved to Results/
-
 clear; warning('off', 'all');
 
 base    = fileparts(mfilename('fullpath'));
@@ -17,8 +7,8 @@ addpath(fullfile(base, '..', '..', '..', 'helpers'));
 
 % Geometry %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-x_res_nm = 0.5;
-z_res_nm = 0.5;
+x_res_nm = 0.1;
+z_res_nm = 0.1;
 
 grPeriod_lpermm      = 600;
 grBlazeAngle_deg     = 0.73;
@@ -44,13 +34,14 @@ stack = build_stack(grating);
 stack = add_layer(stack, fullfile(oc_path, 'n_Au_cxro.txt'), 31);   % 31 nm Au coating
 
 
-% Sweep parameters %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
-% Fixed photon energy: solve efficiency as a function of grazing angle.
 
-sweep.type      = 'alpha';
-sweep.values    = 0.3:0.1:6.0;    % grazing incidence angles in degrees
-sweep.energy_eV = 1000;            % fixed photon energy in eV
+% Sweep parameters %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+sweep.type      = 'energy';
+sweep.values    = 50:5:1000;
+sweep.alpha_deg = 4;        % fixed grazing incidence angle in degrees
+% sweep.Cff     = 2.25;     % uncomment to use Cff-based angle instead
 
 
 % Solver options %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -72,24 +63,4 @@ results = run_rcwa(stack, substrate_file, sweep, options);
 
 % Plot %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-if isempty(results.efficiency)
-    error('No valid efficiency data — check angle range and optical constant files.');
-end
-
-figure(1); clf;
-plot(results.sweep_values, results.efficiency * 100, ...
-     'r-o', 'LineWidth', 1.2, 'MarkerSize', 3);
-
-xlabel('Grazing Angle (deg)', 'FontSize', 12);
-ylabel('Diffraction Efficiency (%)', 'FontSize', 12);
-
-pol_str = 'TM'; if options.pol == 1; pol_str = 'TE'; end
-title(sprintf('Fixed Energy Angle Sweep | %d l/mm | %.0f eV | %s | Order %+d', ...
-    grPeriod_lpermm, sweep.energy_eV, pol_str, options.GR_Order), 'FontSize', 11);
-
-grid on;
-set(gca, 'FontSize', 11);
-xlim([min(results.sweep_values), max(results.sweep_values)]);
-
-saveas(gcf, fullfile(options.output_dir, 'efficiency_fixed_energy_angle_sweep.png'));
-fprintf('Plot saved.\n');
+plot_results(stack, substrate_file, sweep, options, results);
