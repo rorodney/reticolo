@@ -4,7 +4,7 @@ clear; warning('off', 'all');
 
 base    = fileparts(mfilename('fullpath'));
 oc_path = fullfile(base, '..', '..', 'Optical_Constants');
-addpath(fullfile(base, '..', '..', '..', 'helpers'));
+addpath(fullfile(base, '..', '..', 'helpers'));
 
 
 % Geometry %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
